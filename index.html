@@ -1,0 +1,155 @@
+<html>
+<head>
+	<title>Sitellite Desktop</title>
+
+	<style type="text/css">
+	body, iframe {
+		margin: 0px;
+		padding: 0px;
+		border: 0px none;
+	}
+	</style>
+
+	<script src="js/servicemonitor.swf" type="application/x-shockwave-flash"></script>
+	<script src="js/AIRAliases.js" type="text/javascript"></script>
+	<script src="js/AIRIntrospector.js" type="text/javascript"></script>
+	<script src="js/db.js" type="text/javascript"></script>
+	<script src="js/sitellite.js" type="text/javascript"></script>
+
+	<script type="text/javascript">
+		var db = new database ();
+		var s = new sitellite ();
+		var Exposed = {};
+		var monitors = Array ();
+		var monitor = -1;
+		var menu_drawn = false;
+
+		Exposed.trace = function (str) { air.trace (str); }
+		Exposed.domain = function (url) { return s.domain (url); }
+		Exposed.add_site = function (url, user, pass) { return s.add_site (url, user, pass); }
+		Exposed.edit_site = function (domain, url, user, pass) { return s.edit_site (domain, url, user, pass); }
+		Exposed.delete_site = function (domain, user) { return s.delete_site (domain, user); }
+		Exposed.get_sites = function () { return s.get_sites (); }
+		Exposed.get_site = function (domain, user) { return s.get_site (domain, user); }
+		Exposed.launch_site = function (domain, user, pass, url) { return s.launch_site (domain, user, pass, url); }
+		Exposed.show_files = function (domain, user, pass, url) { return s.show_files (domain, user, pass, url); }
+		Exposed.site_monitor = function () { return s.site_monitor (); }
+		Exposed.system_alert = function () {
+			if (air.NativeApplication.supportsDockIcon) {
+				air.NativeApplication.nativeApplication.icon.bounce ('critical');
+			}
+			if (window.nativeWindow.supportsNotification) {
+				window.nativeWindow.notifyUser (air.NotificationType.CRITICAL);
+			}
+		}
+		Exposed.dock_menu = function (sites) {
+			// osx window menus
+			if (air.NativeApplication.supportsMenu) {
+				var root = air.NativeApplication.nativeApplication.menu;
+				var sub = new air.NativeMenu ();
+				for (var i = 0; i < sites.length; i++) {
+					var s = sub.addItem (new air.NativeMenuItem (sites[i].domain));
+					s.data = sites[i];
+					s.addEventListener (air.Event.SELECT, on_launch);
+				}
+				if (menu_drawn) {
+					root.removeItemAt (3);
+				}
+				root.addSubmenuAt (sub, 3, 'Launch');
+	
+				var sub = new air.NativeMenu ();
+				for (var i = 0; i < sites.length; i++) {
+					var s = sub.addItem (new air.NativeMenuItem (sites[i].domain));
+					s.data = sites[i];
+					s.addEventListener (air.Event.SELECT, on_files);
+				}
+				if (menu_drawn) {
+					root.removeItemAt (4);
+				}
+				root.addSubmenuAt (sub, 4, 'Files');
+			}
+
+			menu_drawn = true;
+
+			// dock menu
+			if (air.NativeApplication.supportsDockIcon) {
+				var dock = air.NativeApplication.nativeApplication.icon;
+				var root = new air.NativeMenu ();
+				var sub = new air.NativeMenu ();
+				for (var i = 0; i < sites.length; i++) {
+					var s = sub.addItem (new air.NativeMenuItem (sites[i].domain));
+					s.data = sites[i];
+					s.addEventListener (air.Event.SELECT, on_launch);
+				}
+				root.addSubmenu (sub, 'Launch');
+
+				var sub = new air.NativeMenu ();
+				for (var i = 0; i < sites.length; i++) {
+					var s = sub.addItem (new air.NativeMenuItem (sites[i].domain));
+					s.data = sites[i];
+					s.addEventListener (air.Event.SELECT, on_files);
+				}
+				root.addSubmenu (sub, 'Files');
+
+				dock.menu = root;
+			}
+		}
+
+		function on_launch (evt) {
+			//air.Introspector.Console.log (evt);
+			s.launch_site (
+				evt.target.data.domain,
+				evt.target.data.user,
+				evt.target.data.pass,
+				evt.target.data.url
+			);
+		}
+
+		function on_files (evt) {
+			//air.Introspector.Console.log (evt);
+			s.show_files (
+				evt.target.data.domain,
+				evt.target.data.user,
+				evt.target.data.pass,
+				evt.target.data.url
+			);
+		}
+
+		function do_load () {
+			var frame = document.getElementById ('UI').contentWindow.parentSandboxBridge = Exposed;
+			window.ui_init = document.getElementById ('UI').contentWindow.childSandboxBridge.ui_init;
+			window.ui_site_down = document.getElementById ('UI').contentWindow.childSandboxBridge.ui_site_down;
+			window.ui_site_up = document.getElementById ('UI').contentWindow.childSandboxBridge.ui_site_up;
+
+			db.init (
+				'sites.db'
+			);
+			db.exec (
+				'create table if not exists sites ('
+					+ 'domain char(72) not null, '
+					+ 'url char(255) not null, '
+					+ 'user char(48) not null, '
+					+ 'pass char(48) not null, '
+					+ 'primary key (domain, user))'
+			);
+
+			window.ui_init ();
+		}
+
+		function do_unload () {
+			db.close ();
+		}
+	</script>
+</head>
+<body onload="do_load ()" onunload="do_unload ()"><iframe
+	id="UI"
+	src="ui.html"
+	sandboxRoot="http://localhost/"
+	documentRoot="app:/"
+	mapFrom="/"
+	mapTo="app:/"
+	width="100%"
+	height="99%"
+	scrolling="no">
+</iframe></body>
+</html>

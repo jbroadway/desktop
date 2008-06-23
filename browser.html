@@ -1,0 +1,134 @@
+<html>
+<head>
+	<title>Sitellite Desktop</title>
+
+	<link rel="stylesheet" type="text/css" href="css/style.css" />
+
+	<script type="text/javascript">
+		var web_view;
+		var control_panel;
+		var initial_url;
+		var abs_url;
+		var url;
+		var domain;
+		var user;
+		var pass;
+		var loading;
+		var Exposed = {};
+
+		function do_load () {
+			window.runtime = window.opener.runtime;
+			var frame = document.getElementById ('SITE').contentWindow.parentSandboxBridge = Exposed;
+
+			url = window.opener.url;
+			domain = window.opener.domain;
+			user = window.opener.user;
+			pass = window.opener.pass;
+
+			web_view = url;
+			web_view = web_view.replace (/\/(cms-app|sitellite)/, '');
+
+			control_panel = url;
+			control_panel = control_panel.replace (/\/cms-app/, '/cms-cpanel-action');
+			control_panel = control_panel.replace (/\/sitellite/, '/index/cms-cpanel-action');
+
+			initial_url = url;
+			initial_url = web_view + '?username=' + escape (user) + '&password=' + escape (pass);
+
+			if (url.match ('https://')) {
+				abs_url = 'https://' + domain + '/';
+			} else {
+				abs_url = 'http://' + domain + '/';
+			}
+
+			document.getElementById ('sitename').innerHTML = domain;
+
+			f = document.getElementById ('SITE');
+
+			f.onload = do_loaded;
+			f.onclick = do_loading;
+
+			f.src = initial_url;
+			f.sandboxRoot = abs_url;
+			f.documentRoot = abs_url;
+			//f.setAttribute ('sandboxRoot', abs_url);
+			//f.setAttribute ('documentRoot', abs_url);
+
+			//document.getElementById ('SITE').src = initial_url;
+			//document.getElementById ('SITE').sandboxRoot = abs_url;
+			//document.getElementById ('SITE').documentRoot = abs_url;
+			//document.getElementById ('ADDR').value = initial_url;
+		}
+
+		function do_back () {
+			do_loading ();
+			//history.back ();
+			document.getElementById ('SITE').contentWindow.history.back ();
+			return false;
+		}
+
+		function do_forward () {
+			do_loading ();
+			document.getElementById ('SITE').contentWindow.history.forward ();
+			return false;
+		}
+
+		function do_web_view () {
+			do_loading ();
+			document.getElementById ('SITE').src = web_view;
+			document.getElementById ('ADDR').value = web_view;
+			return false;
+		}
+
+		function do_control_panel () {
+			do_loading ();
+			document.getElementById ('SITE').src = control_panel;
+			document.getElementById ('ADDR').value = control_panel;
+			return false;
+		}
+
+		function do_loading () {
+			document.getElementById ('loading').setAttribute ('src', 'pix/loading.gif');
+		}
+
+		function do_loaded () {
+			document.getElementById ('loading').setAttribute ('src', 'pix/spacer.gif');
+		}
+	</script>
+</head>
+<body onload="do_load ()">
+	<div id="blue"></div>
+
+	<div id="browser">
+
+	<img src="pix/loading.gif" height="16" width="16" border="0" id="loading" />
+	<h2 id="sitename">Sitellite Desktop</h2>
+
+	<div id="menubar">
+		<div id="controls">
+			<a href="#" onclick="return do_web_view ()">Web View</a>
+			&nbsp;
+			<a href="#" onclick="return do_control_panel ()">Control Panel</a>
+			&nbsp;
+			<a href="#" onclick="if (confirm ('Are you sure you want to close the current window?')) { window.close (); }">Close</a>
+		</div>
+		<a href="#" onclick="return do_back ()">&laquo; Back</a>
+		&nbsp;
+		<a href="#" onclick="return do_forward ()">Forward &raquo;</a>
+	</div>
+
+	<div style="display: none">
+		<input type="text" id="ADDR" size="60"/>
+	</div>
+
+	<iframe
+		id="SITE"
+		width="100%"
+		height="90%"
+		scrolling="yes">
+	</iframe>
+
+	</div>
+
+</body>
+</html>

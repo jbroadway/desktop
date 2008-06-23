@@ -1,0 +1,801 @@
+<html>
+<head>
+	<title>Sitellite Desktop</title>
+
+	<link rel="stylesheet" type="text/css" href="css/style.css" />
+	<link rel="stylesheet" type="text/css" href="css/thickbox.css" />
+	<script src="js/AIRAliases.js" type="text/javascript"></script>
+	<script src="js/AIRIntrospector.js" type="text/javascript"></script>
+	<script src="js/jquery-1.2.3.js" type="text/javascript"></script>
+	<script src="js/jquery-1.2.3.js" type="text/javascript"></script>
+	<script src="js/jquery.ui-1.5b/jquery.dimensions.js" type="text/javascript"></script>
+	<script src="js/jquery.ui-1.5b/ui.mouse.js" type="text/javascript"></script>
+	<script src="js/jquery.ui-1.5b/ui.draggable.js" type="text/javascript"></script>
+	<script src="js/jquery.ui-1.5b/ui.draggable.ext.js" type="text/javascript"></script>
+	<script src="js/jquery.ui-1.5b/ui.droppable.js" type="text/javascript"></script>
+	<script src="js/jquery.ui-1.5b/ui.droppable.ext.js" type="text/javascript"></script>
+	<script src="js/thickbox-3.1.js" type="text/javascript"></script>
+	<script type="text/javascript" src="js/parseuri.js"></script>
+	<script type="text/javascript" src="js/json2.js"></script>
+	<script type="text/javascript" src="js/intl.js"></script>
+	<script type="text/javascript" src="js/ui.js"></script>
+	<script type="text/javascript" src="js/webfiles.js"></script>
+
+	<script type="text/javascript">
+		var initial_url;
+		var abs_url;
+		var url;
+		var domain;
+		var user;
+		var pass;
+		var ui;
+		var intl;
+		var wf;
+		var current_path;
+		var reload;
+		var Exposed = {};
+
+		function do_load () {
+			window.runtime = window.opener.runtime;
+			//var frame = document.getElementById ('SITE').contentWindow.parentSandboxBridge = Exposed;
+
+			url = window.opener.url;
+			domain = window.opener.domain;
+			user = window.opener.user;
+			pass = window.opener.pass;
+			current_path = '/';
+
+			document.getElementById ('sitename').innerHTML = domain;
+
+			intl = new i18n ('en');
+			intl.init ();
+			ui = new gui ();
+
+			wf = new webfiles (domain, user, pass, url);
+			wf.list (current_path, files_update);
+			wf.statuses ();
+			wf.access_levels ();
+			wf.teams ();
+
+			f = document.getElementById ('files');
+			f.addEventListener ('dragenter', do_drag_enter);
+			f.addEventListener ('dragover', do_drag_enter);
+			f.addEventListener ('drop', do_drag_drop);
+
+			// reload every minute to check for changes on the server
+			reload = setInterval ('wf.list (current_path, files_update);', 60000);
+		}
+
+		function do_drag_enter (evt) {
+			evt.preventDefault ();
+		}
+
+		function do_drag_drop (evt) {
+			files = evt.dataTransfer.getData ('application/x-vnd.adobe.air.file-list');
+			if (files) {
+				wf.drop_put (files);
+			}
+		}
+
+		function do_search (f) {
+			q = f.elements.query.value;
+			if (q.length == 0 || q == 'Search...') {
+				return false;
+			}
+
+			// search for q
+
+			return false;
+		}
+
+		function do_file () {
+			var d = air.File.documentsDirectory;
+			try {
+				d.browseForOpen ('Add File');
+				d.addEventListener (air.Event.SELECT, wf.put);
+			} catch (e) {
+				air.Introspector.Console.log (e);
+			}
+			return false;
+		}
+
+		function do_update (evt) {
+			wf.list (evt.data.path, files_update);
+			return false;
+		}
+
+		function do_edit_file (evt) {
+			f = document.getElementById ('edit-file-form');
+			while (f.elements.status.options.length > 0) {
+				f.elements.status.remove (f.elements.status.options.length - 1);
+			}
+			for (var i = 0; i < wf.status_list.length; i++) {
+				l = f.elements.status.length;
+				f.elements.status.options[l] = new Option (wf.status_list[i], wf.status_list[i]);
+				if (wf.status_list[i] == evt.data.status) {
+					f.elements.status.selectedIndex = l;
+				}
+			}
+			while (f.elements.access.options.length > 0) {
+				f.elements.access.remove (f.elements.access.options.length - 1);
+			}
+			for (var i = 0; i < wf.access_list.length; i++) {
+				l = f.elements.access.length;
+				f.elements.access.options[l] = new Option (wf.access_list[i], wf.access_list[i]);
+				if (wf.access_list[i] == evt.data.access) {
+					f.elements.access.selectedIndex = l;
+				}
+			}
+			while (f.elements.team.options.length > 0) {
+				f.elements.team.remove (f.elements.team.options.length - 1);
+			}
+			for (var i = 0; i < wf.team_list.length; i++) {
+				l = f.elements.team.length;
+				f.elements.team.options[l] = new Option (wf.team_list[i], wf.team_list[i]);
+				if (wf.team_list[i] == evt.data.team) {
+					f.elements.team.selectedIndex = l;
+				}
+			}
+			f.elements.path.value = evt.data.path;
+			f.elements.name.value = evt.data.name;
+			f.elements.keywords.value = evt.data.keywords;
+			f.elements.description.value = evt.data.description;
+		}
+
+		function do_edit_folder (evt) {
+			f = document.getElementById ('edit-folder-form');
+			f.elements.path.value = evt.data.path;
+			f.elements.name.value = evt.data.name;
+		}
+
+		function files_update (evt) {
+			//air.Introspector.Console.log (evt);
+			res = JSON.parse (evt.target.data);
+			//air.Introspector.Console.log (res);
+
+			current_path = res.root;
+			wf.update_path (res.root);
+
+			ui.alt.reset ();
+
+			t = ui.el ('table', {cellspacing: 1, cellpadding: 5});
+
+			tr = ui.el ('tr');
+			th = ui.el ('th', {width: '50%', valign: 'middle'});
+			th.innerText = intl.get ('File Name');
+			tr.appendChild (th);
+		
+			th = ui.el ('th', {width: '10%', valign: 'middle'});
+			th.innerText = intl.get ('Size');
+			tr.appendChild (th);
+		
+			th = ui.el ('th', {width: '40%', valign: 'middle'});
+			th.innerText = intl.get ('Options');
+			tr.appendChild (th);
+			t.appendChild (tr);
+
+			for (var i = 0; i < res.files.length; i++) {
+				tr = ui.el ('tr');
+				tr.setAttribute ('class', ui.alt.next ());
+				
+				if (res.files[i].type == 'httpd/unix-directory') {
+					td = ui.el ('td', {valign: 'middle'});
+
+					span = ui.el ('span');
+					$(span).addClass ('folder');
+
+					img = ui.el ('img', {src: 'pix/folder.gif', alt: '', border: '0'});
+					img.setAttribute ('class', 'file');
+					if (res.files[i].lock != false && res.files[i].lock.owner != user) {
+						img.setAttribute ('src', 'pix/locked.gif');
+					}
+					span.appendChild (img);
+
+					a = ui.el ('a', {href: '#'});
+					$(a).bind ('click', {path: res.files[i].name}, do_update);
+					a.innerText = wf.get_name (res.files[i].name);
+					span.appendChild (a);
+					td.appendChild (span);
+					tr.appendChild (td);
+
+					td = ui.el ('td', {valign: 'middle'});
+					td.innerText = ' ';
+					tr.appendChild (td);
+
+					td = ui.el ('td', {valign: 'middle'});
+					td.style.textAlign = 'center';
+
+					/*if (res.files[i].lock != false && res.files[i].lock.owner != user) {
+
+						span = ui.el ('span');
+						span.setAttribute ('class', 'pipe');
+						span.innerHTML = '<img src="pix/settings.gif" alt="Edit" title="Edit" border="0" /> Edit';
+						td.appendChild (span);
+	
+						pipe = ui.el ('span');
+						pipe.setAttribute ('class', 'pipe');
+						pipe.innerHTML = ' &nbsp;|&nbsp; ';
+						td.appendChild (pipe);
+	
+						a = ui.el ('a', {href: '#'});
+						$(a).bind ('click', {path: res.files[i].name}, wf.copy_file);
+						a.innerHTML = '<img src="pix/copy.gif" alt="Duplicate" title="Duplicate" border="0" /> Duplicate';
+						td.appendChild (a);
+	
+						pipe = ui.el ('span');
+						pipe.setAttribute ('class', 'pipe');
+						pipe.innerHTML = ' &nbsp;|&nbsp; ';
+						td.appendChild (pipe);
+
+						span = ui.el ('span');
+						span.setAttribute ('class', 'pipe');
+						span.innerHTML = '<img src="pix/lock.gif" alt="Lock" title="Lock" border="0" /> Lock';
+						td.appendChild (span);
+	
+						pipe = ui.el ('span');
+						pipe.setAttribute ('class', 'pipe');
+						pipe.innerHTML = ' &nbsp;|&nbsp; ';
+						td.appendChild (pipe);
+
+						span = ui.el ('span');
+						span.setAttribute ('class', 'pipe');
+						span.innerHTML = '<img src="pix/remove.gif" alt="Delete" title="Delete" border="0" /> Delete';
+						td.appendChild (span);
+
+					} else {
+
+						a = ui.el ('a', {href: '#TB_inline?height=125&width=250&inlineId=edit-folder&modal=true'});
+						a.setAttribute ('class', 'thickbox');
+						$(a).bind ('click', {path: res.files[i].name, name: wf.get_name (res.files[i].name)}, do_edit_folder);
+						a.innerHTML = '<img src="pix/settings.gif" alt="Edit" title="Edit" border="0" /> Edit';
+						td.appendChild (a);
+	
+						pipe = ui.el ('span');
+						pipe.setAttribute ('class', 'pipe');
+						pipe.innerHTML = ' &nbsp;|&nbsp; ';
+						td.appendChild (pipe);
+	
+						a = ui.el ('a', {href: '#'});
+						$(a).bind ('click', {path: res.files[i].name}, wf.copy_file);
+						a.innerHTML = '<img src="pix/copy.gif" alt="Duplicate" title="Duplicate" border="0" /> Duplicate';
+						td.appendChild (a);
+	
+						pipe = ui.el ('span');
+						pipe.setAttribute ('class', 'pipe');
+						pipe.innerHTML = ' &nbsp;|&nbsp; ';
+						td.appendChild (pipe);
+	
+						a = ui.el ('a', {href: '#'});
+						$(a).bind ('click', {path: res.files[i].name}, wf.lock_file);
+						a.innerHTML = '<img src="pix/lock.gif" alt="Lock" title="Lock" border="0" /> Lock';
+						td.appendChild (a);
+	
+						pipe = ui.el ('span');
+						pipe.setAttribute ('class', 'pipe');
+						pipe.innerHTML = ' &nbsp;|&nbsp; ';
+						td.appendChild (pipe);
+	
+						a = ui.el ('a', {href: '#'});
+						$(a).bind ('click', {path: res.files[i].name}, wf.delete_file);
+						a.innerHTML = '<img src="pix/remove.gif" alt="Delete" title="Delete" border="0" /> Delete';
+						td.appendChild (a);
+
+					}*/
+
+					tr.appendChild (td);
+				} else {
+
+					td = ui.el ('td', {valign: 'middle'});
+
+					span = ui.el ('span');
+
+					img = ui.el ('img', {src: 'pix/files.gif', alt: '', border: '0'});
+					img.setAttribute ('class', 'file');
+					if (res.files[i].lock != false && res.files[i].lock.owner != user) {
+						img.setAttribute ('src', 'pix/locked.gif');
+					}
+					span.appendChild (img);
+
+					a = ui.el ('a', {href: '#'});
+					$(a).bind ('click', {path: res.files[i].name}, wf.get);
+					a.innerText = wf.get_name (res.files[i].name);
+					span.appendChild (a);
+
+					if (res.files[i].lock == false || res.files[i].lock.owner == user) {
+						$(span).addClass ('drag-me');
+						$(span).data = res.files[i].name;
+					}
+
+					td.appendChild (span);
+					tr.appendChild (td);
+
+					td = ui.el ('td', {valign: 'middle'});
+					td.style.textAlign = 'right';
+					td.innerText = wf.format_filesize (res.files[i].size);
+					tr.appendChild (td);
+
+					td = ui.el ('td', {valign: 'middle'});
+					td.style.textAlign = 'center';
+
+					if (res.files[i].lock != false && res.files[i].lock.owner != user) {
+
+						span = ui.el ('span');
+						span.setAttribute ('class', 'pipe');
+						span.innerHTML = '<img src="pix/settings.gif" alt="Edit" title="Edit" border="0" /> Edit';
+						td.appendChild (span);
+	
+						pipe = ui.el ('span');
+						pipe.setAttribute ('class', 'pipe');
+						pipe.innerHTML = ' &nbsp;|&nbsp; ';
+						td.appendChild (pipe);
+	
+						a = ui.el ('a', {href: '#'});
+						$(a).bind ('click', {path: res.files[i].name}, wf.copy_file);
+						a.innerHTML = '<img src="pix/copy.gif" alt="Duplicate" title="Duplicate" border="0" /> Duplicate';
+						td.appendChild (a);
+	
+						pipe = ui.el ('span');
+						pipe.setAttribute ('class', 'pipe');
+						pipe.innerHTML = ' &nbsp;|&nbsp; ';
+						td.appendChild (pipe);
+
+						span = ui.el ('span');
+						span.setAttribute ('class', 'pipe');
+						span.innerHTML = '<img src="pix/lock.gif" alt="Lock" title="Lock" border="0" /> Lock';
+						td.appendChild (span);
+	
+						pipe = ui.el ('span');
+						pipe.setAttribute ('class', 'pipe');
+						pipe.innerHTML = ' &nbsp;|&nbsp; ';
+						td.appendChild (pipe);
+
+						span = ui.el ('span');
+						span.setAttribute ('class', 'pipe');
+						span.innerHTML = '<img src="pix/remove.gif" alt="Delete" title="Delete" border="0" /> Delete';
+						td.appendChild (span);
+
+					} else {
+	
+						a = ui.el ('a', {href: '#TB_inline?height=325&width=325&inlineId=edit-file&modal=true'});
+						a.setAttribute ('class', 'thickbox');
+						$(a).bind ('click', {path: res.files[i].name, name: wf.get_name (res.files[i].name), status: res.files[i].status, access: res.files[i].access, team: res.files[i].team, keywords: res.files[i].keywords, description: res.files[i].description}, do_edit_file);
+						a.innerHTML = '<img src="pix/settings.gif" alt="Edit" title="Edit" border="0" /> Edit';
+						td.appendChild (a);
+	
+						pipe = ui.el ('span');
+						pipe.setAttribute ('class', 'pipe');
+						pipe.innerHTML = ' &nbsp;|&nbsp; ';
+						td.appendChild (pipe);
+	
+						a = ui.el ('a', {href: '#'});
+						$(a).bind ('click', {path: res.files[i].name}, wf.copy_file);
+						a.innerHTML = '<img src="pix/copy.gif" alt="Duplicate" title="Duplicate" border="0" /> Duplicate';
+						td.appendChild (a);
+	
+						pipe = ui.el ('span');
+						pipe.setAttribute ('class', 'pipe');
+						pipe.innerHTML = ' &nbsp;|&nbsp; ';
+						td.appendChild (pipe);
+	
+						if (res.files[i].lock != false && res.files[i].lock.owner == user) {
+							a = ui.el ('a', {href: '#'});
+							$(a).bind ('click', {path: res.files[i].name}, wf.unlock_file);
+							a.innerHTML = '<img src="pix/unlock.gif" alt="Unlock" title="Unlock" border="0" /> Unlock';
+							td.appendChild (a);
+						} else {
+							a = ui.el ('a', {href: '#'});
+							$(a).bind ('click', {path: res.files[i].name}, wf.lock_file);
+							a.innerHTML = '<img src="pix/lock.gif" alt="Lock" title="Lock" border="0" /> Lock';
+							td.appendChild (a);
+						}
+	
+						pipe = ui.el ('span');
+						pipe.setAttribute ('class', 'pipe');
+						pipe.innerHTML = ' &nbsp;|&nbsp; ';
+						td.appendChild (pipe);
+	
+						a = ui.el ('a', {href: '#'});
+						$(a).bind ('click', {path: res.files[i].name}, wf.delete_file);
+						a.innerHTML = '<img src="pix/remove.gif" alt="Delete" title="Delete" border="0" /> Delete';
+						td.appendChild (a);
+
+					}
+
+					tr.appendChild (td);
+				}
+
+				t.appendChild (tr);
+			}
+
+			document.getElementById ('contents').innerHTML = '';
+			document.getElementById ('contents').appendChild (t);
+
+			f = document.getElementById ('files');
+			f.addEventListener ('dragenter', do_drag_enter);
+			f.addEventListener ('dragover', do_drag_enter);
+			f.addEventListener ('drop', do_drag_drop);
+
+			$('.drag-me').draggable ({
+				helper: 'clone',
+				cursorAt: {top: -5, left: -5}
+			});
+
+			$('.folder').droppable ({
+				accept: '.drag-me',
+				hoverClass: 'droppable-hover',
+				tolerance: 'pointer',
+				drop: function (evt, ui) {
+					//air.Introspector.Console.log (ui);
+					var folder = $(ui.instance.element).children ('a:first').text ();
+					var name = $(ui.draggable).children ('a:first').text ();
+					wf.move_file (current_path + '/' + name, current_path + '/' + folder + '/');
+				}
+			});
+
+			$('.parent').droppable ({
+				accept: '.drag-me',
+				hoverClass: 'droppable-hover',
+				tolerance: 'pointer',
+				drop: function (evt, ui) {
+					//air.Introspector.Console.log (ui);
+					var folder = $(ui.instance.element).text ();
+					var name = $(ui.draggable).children ('a:first').text ();
+					wf.move_file_up (current_path + '/' + name, folder);
+				}
+			});
+
+			tb_init ('a.thickbox, area.thickbox, input.thickbox');
+		}
+
+		function files_search (evt) {
+			//air.Introspector.Console.log (evt);
+			res = JSON.parse (evt.target.data);
+			//air.Introspector.Console.log (res);
+
+			$('#msg').fadeOut ();
+
+			wf.update_path ('/search: ' + res.query + ' (' + res.results + ')');
+
+			ui.alt.reset ();
+
+			t = ui.el ('table', {cellspacing: 1, cellpadding: 5});
+
+			tr = ui.el ('tr');
+			th = ui.el ('th', {width: '50%', valign: 'middle'});
+			th.innerText = intl.get ('File Name');
+			tr.appendChild (th);
+		
+			th = ui.el ('th', {width: '10%', valign: 'middle'});
+			th.innerText = intl.get ('Size');
+			tr.appendChild (th);
+		
+			th = ui.el ('th', {width: '40%', valign: 'middle'});
+			th.innerText = intl.get ('Options');
+			tr.appendChild (th);
+			t.appendChild (tr);
+
+			for (var i = 0; i < res.files.length; i++) {
+				tr = ui.el ('tr');
+				tr.setAttribute ('class', ui.alt.next ());
+
+				
+				if (res.files[i].type == 'httpd/unix-directory') {
+					td = ui.el ('td', {valign: 'middle'});
+					img = ui.el ('img', {src: 'pix/folder.gif', alt: '', border: '0'});
+					img.setAttribute ('class', 'file');
+					if (res.files[i].lock != false && res.files[i].lock.owner != user) {
+						img.setAttribute ('src', 'pix/locked.gif');
+					}
+					td.appendChild (img);
+
+					a = ui.el ('a', {href: '#'});
+					$(a).bind ('click', {path: res.files[i].name}, do_update);
+					a.innerText = wf.get_name (res.files[i].name);
+					td.appendChild (a);
+					tr.appendChild (td);
+
+					td = ui.el ('td', {valign: 'middle'});
+					td.innerText = ' ';
+					tr.appendChild (td);
+
+					td = ui.el ('td', {valign: 'middle'});
+					td.style.textAlign = 'center';
+
+					if (res.files[i].lock != false && res.files[i].lock.owner != user) {
+
+						span = ui.el ('span');
+						span.setAttribute ('class', 'pipe');
+						span.innerHTML = '<img src="pix/settings.gif" alt="Edit" title="Edit" border="0" /> Edit';
+						td.appendChild (span);
+	
+						pipe = ui.el ('span');
+						pipe.setAttribute ('class', 'pipe');
+						pipe.innerHTML = ' &nbsp;|&nbsp; ';
+						td.appendChild (pipe);
+	
+						a = ui.el ('a', {href: '#'});
+						$(a).bind ('click', {path: res.files[i].name}, wf.copy_file);
+						a.innerHTML = '<img src="pix/copy.gif" alt="Duplicate" title="Duplicate" border="0" /> Duplicate';
+						td.appendChild (a);
+	
+						pipe = ui.el ('span');
+						pipe.setAttribute ('class', 'pipe');
+						pipe.innerHTML = ' &nbsp;|&nbsp; ';
+						td.appendChild (pipe);
+
+						span = ui.el ('span');
+						span.setAttribute ('class', 'pipe');
+						span.innerHTML = '<img src="pix/lock.gif" alt="Lock" title="Lock" border="0" /> Lock';
+						td.appendChild (span);
+	
+						pipe = ui.el ('span');
+						pipe.setAttribute ('class', 'pipe');
+						pipe.innerHTML = ' &nbsp;|&nbsp; ';
+						td.appendChild (pipe);
+
+						span = ui.el ('span');
+						span.setAttribute ('class', 'pipe');
+						span.innerHTML = '<img src="pix/remove.gif" alt="Delete" title="Delete" border="0" /> Delete';
+						td.appendChild (span);
+
+					} else {
+
+						a = ui.el ('a', {href: '#TB_inline?height=125&width=250&inlineId=edit-folder&modal=true'});
+						a.setAttribute ('class', 'thickbox');
+						$(a).bind ('click', {path: res.files[i].name, name: wf.get_name (res.files[i].name)}, do_edit_folder);
+						a.innerHTML = '<img src="pix/settings.gif" alt="Edit" title="Edit" border="0" /> Edit';
+						td.appendChild (a);
+	
+						pipe = ui.el ('span');
+						pipe.setAttribute ('class', 'pipe');
+						pipe.innerHTML = ' &nbsp;|&nbsp; ';
+						td.appendChild (pipe);
+	
+						a = ui.el ('a', {href: '#'});
+						$(a).bind ('click', {path: res.files[i].name}, wf.copy_file);
+						a.innerHTML = '<img src="pix/copy.gif" alt="Duplicate" title="Duplicate" border="0" /> Duplicate';
+						td.appendChild (a);
+	
+						pipe = ui.el ('span');
+						pipe.setAttribute ('class', 'pipe');
+						pipe.innerHTML = ' &nbsp;|&nbsp; ';
+						td.appendChild (pipe);
+	
+						if (res.files[i].lock != false && res.files[i].lock.owner == user) {
+							a = ui.el ('a', {href: '#'});
+							$(a).bind ('click', {path: res.files[i].name}, wf.unlock_file);
+							a.innerHTML = '<img src="pix/unlock.gif" alt="Unlock" title="Unlock" border="0" /> Unlock';
+							td.appendChild (a);
+						} else {
+							a = ui.el ('a', {href: '#'});
+							$(a).bind ('click', {path: res.files[i].name}, wf.lock_file);
+							a.innerHTML = '<img src="pix/lock.gif" alt="Lock" title="Lock" border="0" /> Lock';
+							td.appendChild (a);
+						}
+	
+						pipe = ui.el ('span');
+						pipe.setAttribute ('class', 'pipe');
+						pipe.innerHTML = ' &nbsp;|&nbsp; ';
+						td.appendChild (pipe);
+	
+						a = ui.el ('a', {href: '#'});
+						$(a).bind ('click', {path: res.files[i].name}, wf.delete_file);
+						a.innerHTML = '<img src="pix/remove.gif" alt="Delete" title="Delete" border="0" /> Delete';
+						td.appendChild (a);
+
+					}
+
+					tr.appendChild (td);
+				} else {
+					td = ui.el ('td', {valign: 'middle'});
+					img = ui.el ('img', {src: 'pix/files.gif', alt: '', border: '0'});
+					img.setAttribute ('class', 'file');
+					if (res.files[i].lock != false && res.files[i].lock.owner != user) {
+						img.setAttribute ('src', 'pix/locked.gif');
+					}
+					td.appendChild (img);
+
+					a = ui.el ('a', {href: '#'});
+					$(a).bind ('click', {path: res.files[i].name}, wf.get);
+					a.innerText = res.files[i].name.replace (/^\//, '');
+					td.appendChild (a);
+					tr.appendChild (td);
+
+					td = ui.el ('td', {valign: 'middle'});
+					td.style.textAlign = 'right';
+					td.innerText = wf.format_filesize (res.files[i].size);
+					tr.appendChild (td);
+
+					td = ui.el ('td', {valign: 'middle'});
+					td.style.textAlign = 'center';
+
+					if (res.files[i].lock != false && res.files[i].lock.owner != user) {
+
+						span = ui.el ('span');
+						span.setAttribute ('class', 'pipe');
+						span.innerHTML = '<img src="pix/settings.gif" alt="Edit" title="Edit" border="0" /> Edit';
+						td.appendChild (span);
+	
+						pipe = ui.el ('span');
+						pipe.setAttribute ('class', 'pipe');
+						pipe.innerHTML = ' &nbsp;|&nbsp; ';
+						td.appendChild (pipe);
+	
+						a = ui.el ('a', {href: '#'});
+						$(a).bind ('click', {path: res.files[i].name}, wf.copy_file);
+						a.innerHTML = '<img src="pix/copy.gif" alt="Duplicate" title="Duplicate" border="0" /> Duplicate';
+						td.appendChild (a);
+	
+						pipe = ui.el ('span');
+						pipe.setAttribute ('class', 'pipe');
+						pipe.innerHTML = ' &nbsp;|&nbsp; ';
+						td.appendChild (pipe);
+
+						span = ui.el ('span');
+						span.setAttribute ('class', 'pipe');
+						span.innerHTML = '<img src="pix/lock.gif" alt="Lock" title="Lock" border="0" /> Lock';
+						td.appendChild (span);
+	
+						pipe = ui.el ('span');
+						pipe.setAttribute ('class', 'pipe');
+						pipe.innerHTML = ' &nbsp;|&nbsp; ';
+						td.appendChild (pipe);
+
+						span = ui.el ('span');
+						span.setAttribute ('class', 'pipe');
+						span.innerHTML = '<img src="pix/remove.gif" alt="Delete" title="Delete" border="0" /> Delete';
+						td.appendChild (span);
+
+					} else {
+
+						a = ui.el ('a', {href: '#TB_inline?height=325&width=325&inlineId=edit-file&modal=true'});
+						a.setAttribute ('class', 'thickbox');
+						$(a).bind ('click', {path: res.files[i].name, name: wf.get_name (res.files[i].name), status: res.files[i].status, access: res.files[i].access, team: res.files[i].team, keywords: res.files[i].keywords, description: res.files[i].description}, do_edit_file);
+						a.innerHTML = '<img src="pix/settings.gif" alt="Edit" title="Edit" border="0" /> Edit';
+						td.appendChild (a);
+	
+						pipe = ui.el ('span');
+						pipe.setAttribute ('class', 'pipe');
+						pipe.innerHTML = ' &nbsp;|&nbsp; ';
+						td.appendChild (pipe);
+	
+						a = ui.el ('a', {href: '#'});
+						$(a).bind ('click', {path: res.files[i].name}, wf.copy_file);
+						a.innerHTML = '<img src="pix/copy.gif" alt="Duplicate" title="Duplicate" border="0" /> Duplicate';
+						td.appendChild (a);
+	
+						pipe = ui.el ('span');
+						pipe.setAttribute ('class', 'pipe');
+						pipe.innerHTML = ' &nbsp;|&nbsp; ';
+						td.appendChild (pipe);
+	
+						a = ui.el ('a', {href: '#'});
+						$(a).bind ('click', {path: res.files[i].name}, wf.lock_file);
+						a.innerHTML = '<img src="pix/lock.gif" alt="Lock" title="Lock" border="0" /> Lock';
+						td.appendChild (a);
+	
+						pipe = ui.el ('span');
+						pipe.setAttribute ('class', 'pipe');
+						pipe.innerHTML = ' &nbsp;|&nbsp; ';
+						td.appendChild (pipe);
+	
+						a = ui.el ('a', {href: '#'});
+						$(a).bind ('click', {path: res.files[i].name}, wf.delete_file);
+						a.innerHTML = '<img src="pix/remove.gif" alt="Delete" title="Delete" border="0" /> Delete';
+						td.appendChild (a);
+
+					}
+
+					tr.appendChild (td);
+				}
+
+				t.appendChild (tr);
+			}
+
+			document.getElementById ('contents').innerHTML = '';
+			document.getElementById ('contents').appendChild (t);
+		}
+	</script>
+</head>
+<body onload="do_load ()">
+	<div id="blue"></div>
+
+	<div id="files">
+
+	<h2>
+		<div id="search">
+			<form onsubmit="return wf.search (this.elements.query.value, files_search)">
+			<input type="text" name="query" value="Search..." onfocus="if (this.value == 'Search...') { this.value = ''; }" onblur="if (this.value == '') { this.value = 'Search...'; }" /><input type="submit" value="Go" />
+			</form>
+		</div>
+		<span id="sitename">Sitellite Desktop</span>: <span id="path">/</span>
+	</h2>
+
+	<div>
+		<a href="#" onclick="return do_file ()"><strong>Add File</strong></a>
+		<span class="pipe">&nbsp;|&nbsp;</span>
+		<a href="#TB_inline?height=125&width=250&inlineId=add-folder&modal=true" class="thickbox"><strong>Add Folder</strong></a>
+	</div>
+
+	<div id="contents">
+	</div>
+
+	</div>
+
+	<div id="msg"></div>
+
+	<div id="drop-msg"></div>
+
+	<div id="add-folder" style="display: none">
+		<h2>Add Folder</h2>
+		<form onsubmit="return wf.mkdir (this.elements.folder.value)">
+			<p>
+				Name <input type="text" name="folder" id="folder" size="25" />
+			</p>
+			<p align="center">
+				<input type="submit" value="Create" /> &nbsp;
+				<input type="submit" value="Cancel" onclick="tb_remove (); return false" />
+			</p>
+		</form>
+	</div>
+
+	<div id="edit-file" style="display: none">
+		<h2>Edit File</h2>
+		<form onsubmit="return wf.edit_file (this)" id="edit-file-form">
+		<input type="hidden" name="path" />
+		<table border="0" cellpadding="3" cellspacing="1" width="100%">
+			<tr>
+				<td>Name</td>
+				<td><input type="text" name="name" size="30" />
+			</tr>
+			<tr>
+				<td>Team</td>
+				<td><select name="team"></select></td>
+			</tr>
+			<tr>
+				<td>Status</td>
+				<td><select name="status"></select></td>
+			</tr>
+			<tr>
+				<td>Access Level</td>
+				<td><select name="access"></select></td>
+			</tr>
+			<tr>
+				<td>Description</td>
+				<td><textarea name="description" rows="3" cols="30"></textarea></td>
+			</tr>
+			<tr>
+				<td>Keywords</td>
+				<td><textarea name="keywords" rows="3" cols="30"></textarea></td>
+			</tr>
+			<tr>
+				<td colspan="2" align="center">
+					<input type="submit" value="Save" /> &nbsp;
+					<input type="submit" value="Cancel" onclick="tb_remove (); return false" />
+				</td>
+			</tr>
+		</table>
+		</form>
+	</div>
+
+	<div id="edit-folder" style="display: none">
+		<h2>Edit Folder</h2>
+		<form onsubmit="return wf.edit_folder (this)" id="edit-folder-form">
+		<input type="hidden" name="path" />
+		<table border="0" cellpadding="3" cellspacing="1" width="100%">
+			<tr>
+				<td>Name</td>
+				<td><input type="text" name="name" size="25" />
+			</tr>
+			<tr>
+				<td colspan="2" align="center">
+					<input type="submit" value="Save" /> &nbsp;
+					<input type="submit" value="Cancel" onclick="tb_remove (); return false" />
+				</td>
+			</tr>
+		</table>
+		</form>
+	</div>
+
+</body>
+</html>

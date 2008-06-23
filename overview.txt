@@ -1,0 +1,35 @@
+Sitellite Desktop
+
+- Sites
+  - List - done
+  - Add - done
+  - Edit - done
+  - Delete - done
+  - Monitor - done
+    - Alert if down - done
+    - Bounce/notify - done
+  - Launch (inline) - done
+  - Native menus - done
+
+  - Files
+    - List - done
+    - Download/Open - done
+    - Delete - done
+    - Move - done
+    - Upload - done
+    - Drag 'n' drop - done
+
+  - Inbox
+    - Monitor new messages
+    - List
+    - Read
+    - Send
+    - Archive
+
+- Error handling
+  - Test for incorrect URLs & logins
+  - Test for older Sitellite versions
+
+- Miscellaneous
+  - Icons - done
+  - User guide - done
